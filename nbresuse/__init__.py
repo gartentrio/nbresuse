@@ -46,16 +46,14 @@ class MetricsHandler(IPythonHandler):
         """
         config = self.settings['nbresuse_display_config']
         cur_process = psutil.Process()
-        all_processes = [cur_process] + cur_process.children(recursive=True)     
+        all_processes = [cur_process] + cur_process.children(recursive=True)
         limits = {}
 
-        # Get memory information
-        rss = sum([p.memory_info().rss for p in all_processes])
+        mem_usage = dict(line.split() for line in list(open('/sys/fs/cgroup/memory/memory.stat').readlines()))
 
-        if callable(config.mem_limit):
-            mem_limit = config.mem_limit(rss=rss)
-        else: # mem_limit is an Int
-            mem_limit = config.mem_limit
+        # Get memory information
+        rss = int(mem_usage['rss'])
+        mem_limit = int(memory_stats['hierarchical_memory_limit'])
 
         # A better approach would use cpu_affinity to account for the
         # fact that the number of logical CPUs in the system is not
@@ -66,12 +64,11 @@ class MetricsHandler(IPythonHandler):
         if config.track_cpu_percent:
             self.cpu_percent = await self.update_cpu_percent(all_processes)
 
-        if config.mem_limit != 0:
-            limits['memory'] = {
-                'rss': mem_limit
-            }
-            if config.mem_warning_threshold != 0:
-                limits['memory']['warn'] = (mem_limit - rss) < (mem_limit * config.mem_warning_threshold)
+        limits['memory'] = {
+            'rss': mem_limit
+        }
+        if config.mem_warning_threshold != 0:
+            limits['memory']['warn'] = (mem_limit - rss) < (mem_limit * config.mem_warning_threshold)
 
         # Optionally get CPU information
         if config.track_cpu_percent:
